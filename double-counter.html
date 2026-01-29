@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>対面ポケカカウンター：スタート機能付</title>
+    <style>
+        :root {
+            --bg-color: #121212;
+            --p1-color: #3498db;
+            --p2-color: #e74c3c;
+            --panel-bg: #2a2a2a;
+            --text-main: #ffffff;
+            --active-bg: #1e2a1e;
+            --accent: #f1c40f;
+        }
+
+        body {
+            font-family: -apple-system, sans-serif;
+            background-color: var(--bg-color); color: var(--text-main);
+            margin: 0; padding: 0; height: 100vh; display: flex; flex-direction: column;
+            overflow: hidden; user-select: none;
+        }
+
+        .player-area {
+            flex: 1; display: flex; flex-direction: column;
+            justify-content: center; align-items: center;
+            position: relative; transition: opacity 0.3s, background 0.4s;
+        }
+
+        /* 非アクティブ時は少し暗くする */
+        .player-area:not(.active) { opacity: 0.6; }
+        .opponent { transform: rotate(180deg); border-bottom: 1px solid #333; }
+
+        /* 中央コントロール */
+        .center-bar {
+            height: 60px; background: #333; display: flex;
+            justify-content: center; align-items: center; gap: 15px; z-index: 100;
+            box-shadow: 0 0 10px rgba(0,0,0,0.5);
+        }
+
+        .btn-start {
+            background: var(--accent); color: #000; border: none;
+            padding: 8px 25px; border-radius: 20px; font-weight: bold;
+            font-size: 1rem; cursor: pointer;
+        }
+
+        .btn-mini {
+            background: #444; border: 1px solid #666; color: #fff;
+            padding: 6px 15px; border-radius: 5px; font-size: 0.75rem; cursor: pointer;
+        }
+
+        .btn-mini:disabled { opacity: 0.3; cursor: not-allowed; }
+
+        /* ターン表示 */
+        .turn-display { font-size: 1.6rem; font-weight: bold; margin-bottom: 5px; }
+        .role-badge { font-size: 0.8rem; padding: 2px 10px; border-radius: 4px; margin-bottom: 10px; background: #444; }
+        .role-badge.first { background: #d35400; color: #fff; }
+
+        /* アクティブエフェクト */
+        .active-glow { background: var(--active-bg); opacity: 1 !important; }
+
+        /* アクションボタン */
+        .action-grid { display: flex; gap: 20px; margin: 15px 0; }
+        .action-btn {
+            width: 75px; height: 75px; border-radius: 50%;
+            border: 3px solid #555; background: var(--panel-bg);
+            color: white; font-weight: bold; font-size: 1rem;
+            cursor: pointer; display: flex; justify-content: center; align-items: center;
+            transition: 0.2s;
+        }
+        .action-btn.done { background: #2ecc71; border-color: #27ae60; }
+        .action-btn.disabled { background: #111; border-color: #222; color: #444; pointer-events: none; }
+        
+        /* 準備中（対戦未開始）のボタン無効化 */
+        .not-started .action-btn { opacity: 0.2; pointer-events: none; }
+
+        .end-btn {
+            padding: 12px 60px; border-radius: 30px; border: none;
+            background: #555; color: white; font-weight: bold;
+            font-size: 1.1rem; cursor: pointer; visibility: hidden;
+        }
+        .active .end-btn { visibility: visible; background: var(--p1-color); }
+
+        .label { font-size: 0.7rem; color: #aaa; margin-top: 5px; }
+    </style>
+</head>
+<body onload="loadState()">
+
+    <div id="area-pb" class="player-area opponent">
+        <div id="role-pb" class="role-badge">後攻</div>
+        <div class="turn-display">TURN <span id="turn-pb">0</span></div>
+        <div class="action-grid" id="grid-pb">
+            <div onclick="tapAction('pb', 'energy')">
+                <button id="btn-pb-energy" class="action-btn">エネ</button>
+                <div class="label">エネルギー</div>
+            </div>
+            <div onclick="tapAction('pb', 'supporter')">
+                <button id="btn-pb-supporter" class="action-btn">サポ</button>
+                <div class="label">サポート</div>
+            </div>
+            <div onclick="tapAction('pb', 'retreat')">
+                <button id="btn-pb-retreat" class="action-btn">にげる</button>
+                <div class="label">にげる</div>
+            </div>
+        </div>
+        <button class="end-btn" onclick="nextTurn()">TURN END</button>
+    </div>
+
+    <div class="center-bar">
+        <button id="swap-btn" class="btn-mini" onclick="swapRoles()">⇄ 先攻入替</button>
+        <div id="game-trigger">
+            <button class="btn-start" onclick="startGame()">ゲームスタート</button>
+        </div>
+        <button id="reset-btn" class="btn-mini" onclick="resetGame()" style="display:none; color: #ff7675;">RESET</button>
+    </div>
+
+    <div id="area-pa" class="player-area">
+        <div id="role-pa" class="role-badge">先攻</div>
+        <div class="turn-display">TURN <span id="turn-pa">1</span></div>
+        <div class="action-grid" id="grid-pa">
+            <div onclick="tapAction('pa', 'energy')">
+                <button id="btn-pa-energy" class="action-btn">エネ</button>
+                <div class="label">エネルギー</div>
+            </div>
+            <div onclick="tapAction('pa', 'supporter')">
+                <button id="btn-pa-supporter" class="action-btn">サポ</button>
+                <div class="label">サポート</div>
+            </div>
+            <div onclick="tapAction('pa', 'retreat')">
+                <button id="btn-pa-retreat" class="action-btn">にげる</button>
+                <div class="label">にげる</div>
+            </div>
+        </div>
+        <button class="end-btn" onclick="nextTurn()">TURN END</button>
+    </div>
+
+    <script>
+        const STORAGE_KEY = 'pokeca_dual_v2_started';
+        let state = {
+            isStarted: false,
+            activePlayer: 'pa',
+            firstPlayer: 'pa',
+            pa: { energy: false, supporter: false, retreat: false, turns: 1 },
+            pb: { energy: false, supporter: false, retreat: false, turns: 0 }
+        };
+
+        function saveState() {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+        }
+
+        function loadState() {
+            const saved = localStorage.getItem(STORAGE_KEY);
+            if (saved) {
+                state = JSON.parse(saved);
+                updateUI();
+            }
+        }
+
+        function startGame() {
+            state.isStarted = true;
+            saveState();
+            updateUI();
+        }
+
+        function swapRoles() {
+            if (state.isStarted) return;
+            state.firstPlayer = (state.firstPlayer === 'pa') ? 'pb' : 'pa';
+            // 先攻に合わせてアクティブ（自分のターン）と初期ターン数を調整
+            state.activePlayer = state.firstPlayer;
+            if (state.firstPlayer === 'pa') {
+                state.pa.turns = 1; state.pb.turns = 0;
+            } else {
+                state.pa.turns = 0; state.pb.turns = 1;
+            }
+            saveState();
+            updateUI();
+        }
+
+        function tapAction(player, type) {
+            if (!state.isStarted || state.activePlayer !== player) return;
+            state[player][type] = !state[player][type];
+            saveState();
+            updateUI();
+        }
+
+        function nextTurn() {
+            if (!state.isStarted) return;
+            const current = state.activePlayer;
+            const next = (current === 'pa') ? 'pb' : 'pa';
+            
+            state.activePlayer = next;
+            state[next].turns++;
+            state[next].energy = false;
+            state[next].supporter = false;
+            state[next].retreat = false;
+
+            saveState();
+            updateUI();
+        }
+
+        function resetGame() {
+            if(!confirm("対戦を終了してリセットしますか？")) return;
+            state = {
+                isStarted: false,
+                activePlayer: 'pa',
+                firstPlayer: 'pa',
+                pa: { energy: false, supporter: false, retreat: false, turns: 1 },
+                pb: { energy: false, supporter: false, retreat: false, turns: 0 }
+            };
+            saveState();
+            updateUI();
+        }
+
+        function updateUI() {
+            const players = ['pa', 'pb'];
+            
+            // 中央ボタンの表示切り替え
+            document.getElementById('game-trigger').style.display = state.isStarted ? 'none' : 'block';
+            document.getElementById('reset-btn').style.display = state.isStarted ? 'block' : 'none';
+            document.getElementById('swap-btn').disabled = state.isStarted;
+
+            players.forEach(p => {
+                const area = document.getElementById(`area-${p}`);
+                const grid = document.getElementById(`grid-${p}`);
+                const isTurn = state.isStarted && state.activePlayer === p;
+                const isFirst = state.firstPlayer === p;
+
+                area.classList.toggle('active', isTurn);
+                area.classList.toggle('active-glow', isTurn);
+                area.classList.toggle('not-started', !state.isStarted);
+                
+                const roleBadge = document.getElementById(`role-${p}`);
+                roleBadge.textContent = isFirst ? "先攻" : "後攻";
+                roleBadge.classList.toggle('first', isFirst);
+
+                document.getElementById(`turn-${p}`).textContent = state[p].turns;
+
+                ['energy', 'supporter', 'retreat'].forEach(type => {
+                    const btn = document.getElementById(`btn-${p}-${type}`);
+                    const done = state[p][type];
+                    btn.className = 'action-btn';
+                    btn.textContent = (type === 'energy') ? 'エネ' : (type === 'supporter' ? 'サポ' : 'にげる');
+
+                    if (done) {
+                        btn.classList.add('done');
+                        btn.textContent = '✔';
+                    }
+
+                    if (isFirst && state[p].turns === 1 && type === 'supporter' && !done) {
+                        btn.classList.add('disabled');
+                        btn.textContent = '禁止';
+                    }
+                });
+            });
+        }
+
+        updateUI();
+    </script>
+</body>
+</html>
