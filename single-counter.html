@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ポケカ管理：対戦特化版</title>
+    <style>
+        :root {
+            --bg-color: #f0f2f5;
+            --card-bg: #ffffff;
+            --primary: #3498db;
+            --success: #2ecc71;
+            --danger: #e74c3c;
+            --warning: #f39c12;
+            --neutral: #6c7a89;
+            --evolved: #5d5fef;
+            --move-btn: #f1c40f;
+        }
+
+        body { font-family: 'Helvetica Neue', Arial, sans-serif; background-color: var(--bg-color); margin: 0; padding: 5px; }
+        .app-container { display: flex; max-width: 1100px; margin: 0 auto; gap: 10px; align-items: flex-start; }
+        .main-content { flex: 1.6; min-width: 320px; text-align: center; }
+        .log-section { flex: 1; background: var(--card-bg); padding: 10px; border-radius: 12px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); height: 94vh; display: flex; flex-direction: column; position: sticky; top: 5px; }
+        #action-log { width: 100%; flex-grow: 1; border: 1px solid #ddd; border-radius: 8px; padding: 10px; font-size: 0.85em; font-family: monospace; resize: none; background: #fafafa; }
+
+        .header-controls { background: var(--card-bg); padding: 8px; border-radius: 12px; margin-bottom: 8px; }
+        .btn-turn-end { background-color: var(--danger); color: white; border: none; padding: 10px; border-radius: 8px; font-weight: bold; cursor: pointer; width: 100%; font-size: 1.1em; box-shadow: 0 3px 0 #c0392b; }
+
+        .action-container { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 8px; }
+        .action-box { background: var(--card-bg); padding: 5px 2px; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); min-height: 50px; display: flex; flex-direction: column; justify-content: center; }
+        .action-box h2 { font-size: 0.65em; margin: 0; color: #7f8c8d; }
+        .status-display { font-size: 0.8em; font-weight: bold; margin: 2px 0; }
+        .action-button { width: 90%; margin: 0 auto; padding: 6px 0; border: none; border-radius: 6px; font-weight: bold; color: white; cursor: pointer; font-size: 0.75em; }
+        #energy-button { background: var(--primary); }
+        #supporter-button { background: #9b59b6; }
+        .undo-button { width: 90%; margin: 2px auto 0; padding: 4px 0; background: var(--neutral); color: white; border: none; border-radius: 6px; font-size: 0.7em; cursor: pointer; display: none; }
+        .is-used .action-button { display: none; }
+        .is-used .undo-button { display: block; }
+
+        .pokemon-section { background: var(--card-bg); padding: 8px; border-radius: 12px; margin-bottom: 10px; }
+        .bench-field { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+        .pk-slot { position: relative; aspect-ratio: 1 / 1.1; border: 2px dashed #bdc3c7; border-radius: 8px; background: #fafafa; display: flex; flex-direction: column; align-items: center; padding-top: 10px; }
+        .pk-slot.new { background: #ffebee; border-color: var(--danger); }
+        .pk-slot.ready { background: #e8f5e9; border-color: var(--success); }
+        .pk-slot.evolved { background: #e8eaf6; border-color: var(--evolved); }
+
+        .btn-remove { position: absolute; top: 1px; right: 1px; width: 20px; height: 20px; background: #95a5a6; border: none; border-radius: 50%; color: white; font-weight: bold; cursor: pointer; display: none; font-size: 10px; }
+        .btn-evolve { width: 85%; margin-top: 3px; padding: 3px 0; background: var(--neutral); border: none; border-radius: 4px; color: white; font-size: 0.65em; cursor: pointer; display: none; }
+        .btn-to-active { width: 85%; margin-top: 3px; padding: 5px 0; background: var(--move-btn); border: none; border-radius: 4px; color: #333; font-weight: bold; font-size: 0.7em; cursor: pointer; display: none; }
+        .btn-add { position: absolute; top: 0; left: 0; width: 100%; height: 100%; font-size: 1.5em; color: #bdc3c7; border: none; background: none; cursor: pointer; }
+
+        .pk-slot:not(.empty) .btn-remove { display: block; }
+        .pk-slot.ready .btn-evolve { display: block; }
+        .pk-slot.is-bench:not(.empty) .btn-to-active { display: block; }
+
+        /* フッターボタンエリア */
+        .footer-settings { display: flex; justify-content: center; gap: 10px; margin-top: 10px; }
+        .btn-setting { background: none; border: 1px solid #ccc; color: #888; padding: 5px 10px; border-radius: 15px; font-size: 0.7em; cursor: pointer; }
+        
+        .used { color: var(--danger); }
+        .available { color: var(--success); }
+
+        @media (max-width: 768px) { .app-container { flex-direction: column; } .log-section { height: 250px; width: 100%; position: static; } }
+    </style>
+</head>
+<body onload="loadAll()">
+
+    <div class="app-container">
+        <div class="main-content">
+            <div class="header-controls">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;">
+                    <div style="font-size:0.8em;">
+                        <input type="radio" name="role" id="role-first" onchange="saveAll(); refreshUI();" checked>先 <input type="radio" name="role" id="role-second" onchange="saveAll(); refreshUI();">後
+                    </div>
+                    <div style="font-weight:bold;">第 <span id="display-turn">1</span> ターン</div>
+                    <div style="width:40px;"></div>
+                </div>
+                <button class="btn-turn-end" onclick="endTurn()">ターン終了</button>
+            </div>
+
+            <div class="action-container">
+                <div class="action-box" id="box-energy">
+                    <h2>エネルギー</h2><div class="status-display" id="status-energy"></div>
+                    <button class="action-button" id="energy-button" onclick="useAction('energy', 'エネルギー付与')">付与</button>
+                    <button class="undo-button" onclick="undoAction('energy')">戻す</button>
+                </div>
+                <div class="action-box" id="box-supporter">
+                    <h2>サポート</h2><div class="status-display" id="status-supporter"></div>
+                    <button class="action-button" id="supporter-button" onclick="useAction('supporter', 'サポート使用')">使用</button>
+                    <button class="undo-button" onclick="undoAction('supporter')">戻す</button>
+                </div>
+                <div class="action-box" id="box-retreat">
+                    <h2>にげる</h2><div class="status-display" id="status-retreat"></div>
+                    <button class="undo-button" id="retreat-undo" onclick="undoAction('retreat')">戻す</button>
+                </div>
+            </div>
+
+            <div class="pokemon-section">
+                <div class="battle-field" style="margin-bottom: 10px;">
+                    <div class="pk-slot" id="pk-0" style="margin: 0 auto; width: 90px; height: 100px;"></div>
+                </div>
+                <div class="bench-field" id="bench-container"></div>
+            </div>
+
+            <div class="footer-settings">
+                <button id="bench-toggle-btn" class="btn-setting" onclick="toggleBenchLimit()">ベンチ枠(8)に拡張</button>
+                <button class="btn-setting" onclick="fullReset()">全データをリセット</button>
+            </div>
+        </div>
+
+        <div class="log-section">
+            <h2 style="font-size:0.8em; margin:0 0 5px 0;">📝 対戦ログ/メモ</h2>
+            <textarea id="action-log" placeholder="タップしてメモを入力..."></textarea>
+        </div>
+    </div>
+
+    <script>
+        const STORAGE_KEY = 'pokeca_state_v10';
+        let state = {
+            role: 'FIRST', turnCount: 1,
+            actions: { energy: false, supporter: false, retreat: false },
+            pokemons: Array(9).fill('empty'), benchLimit: 5, logContent: ''
+        };
+
+        function addLog(msg) {
+            const logArea = document.getElementById('action-log');
+            logArea.value += `[T${state.turnCount}] ${msg}\n`;
+            logArea.scrollTop = logArea.scrollHeight;
+            saveAll();
+        }
+
+        function saveAll() {
+            state.role = document.getElementById('role-second').checked ? 'SECOND' : 'FIRST';
+            state.logContent = document.getElementById('action-log').value;
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+        }
+
+        function loadAll() {
+            const saved = localStorage.getItem(STORAGE_KEY);
+            if (saved) {
+                state = JSON.parse(saved);
+                document.getElementById(state.role === 'SECOND' ? 'role-second' : 'role-first').checked = true;
+                document.getElementById('action-log').value = state.logContent || '';
+            }
+            initBenchUI();
+            refreshUI();
+        }
+
+        function toggleBenchLimit() {
+            if (state.benchLimit === 5) { 
+                state.benchLimit = 8; 
+                addLog("ベンチ枠を8に拡張"); 
+            } else { 
+                if (state.pokemons.slice(6, 9).some(p => p !== 'empty')) { 
+                    if (!confirm("拡張枠にポケモンがいますが戻しますか？")) return; 
+                } 
+                state.benchLimit = 5; 
+                addLog("ベンチ枠を5に縮小"); 
+            }
+            initBenchUI(); 
+            refreshUI();
+        }
+
+        function initBenchUI() {
+            const container = document.getElementById('bench-container');
+            container.innerHTML = '';
+            for (let i = 1; i <= state.benchLimit; i++) {
+                const div = document.createElement('div');
+                div.id = `pk-${i}`; div.className = 'pk-slot is-bench';
+                container.appendChild(div);
+            }
+            document.getElementById('bench-toggle-btn').textContent = state.benchLimit === 5 ? "ベンチ枠(8)に拡張" : "ベンチ枠(5)に戻す";
+        }
+
+        function useAction(type, label) { state.actions[type] = true; addLog(label); refreshUI(); }
+        function undoAction(type) { state.actions[type] = false; addLog(`取消: ${type}`); refreshUI(); }
+
+        function addPokemon(i) { state.pokemons[i] = 'new'; addLog(`${i==0?'バトル場':'ベンチ'+i}登場`); refreshUI(); }
+        function removePokemon(i) { state.pokemons[i] = 'empty'; addLog(`${i==0?'バトル場':'ベンチ'+i}トラッシュ`); refreshUI(); }
+        function evolvePokemon(i) { state.pokemons[i] = 'evolved'; addLog(`${i==0?'バトル場':'ベンチ'+i}進化`); refreshUI(); }
+
+        function moveToActive(benchIndex) {
+            const isEmpty = state.pokemons[0] === 'empty';
+            if (!isEmpty && state.actions.retreat) { alert("にげる使用済"); return; }
+            const temp = state.pokemons[0];
+            state.pokemons[0] = state.pokemons[benchIndex];
+            state.pokemons[benchIndex] = temp;
+            if (isEmpty) { addLog(`繰り出し: B${benchIndex} → バトル場`); }
+            else { state.actions.retreat = true; addLog(`にげる: B${benchIndex}と交代`); }
+            refreshUI();
+        }
+
+        function endTurn() {
+            addLog(`--- ターン終了 ---`);
+            state.actions = { energy: false, supporter: false, retreat: false };
+            state.pokemons = state.pokemons.map(p => (p === 'new' || p === 'evolved') ? 'ready' : p);
+            state.turnCount++;
+            refreshUI();
+        }
+
+        function fullReset() {
+            if (confirm('全ての記録を消去して新しく始めますか？')) {
+                state = { role: 'FIRST', turnCount: 1, actions: { energy: false, supporter: false, retreat: false }, pokemons: Array(9).fill('empty'), benchLimit: 5, logContent: '' };
+                document.getElementById('role-first').checked = true; document.getElementById('action-log').value = '';
+                initBenchUI(); refreshUI();
+            }
+        }
+
+        function refreshUI() {
+            document.getElementById('display-turn').textContent = state.turnCount;
+            const isFirstOne = (state.role === 'FIRST' && state.turnCount === 1);
+
+            ['energy', 'supporter', 'retreat'].forEach(t => {
+                const box = document.getElementById(`box-${t}`);
+                const status = document.getElementById(`status-${t}`);
+                const isUsed = state.actions[t];
+                box.classList.toggle('is-used', isUsed);
+                
+                status.textContent = isUsed ? '済' : (t === 'supporter' && isFirstOne ? '不可' : '可');
+                status.className = 'status-display ' + (isUsed ? 'used' : (t === 'supporter' && isFirstOne ? 'disabled-rule' : 'available'));
+                
+                if (t === 'retreat') {
+                    document.getElementById('retreat-undo').style.display = isUsed ? 'block' : 'none';
+                } else {
+                    document.getElementById(`${t}-button`).style.display = (isUsed || (t === 'supporter' && isFirstOne)) ? 'none' : 'block';
+                }
+            });
+
+            for (let i = 0; i <= state.benchLimit; i++) {
+                const el = document.getElementById(`pk-${i}`); if (!el) continue;
+                const s = state.pokemons[i];
+                el.className = `pk-slot ${s} ${i===0?'':'is-bench'}`;
+                const label = i === 0 ? 'バトル場' : `B${i}`;
+                const stText = { 'new': '出したて', 'ready': '準備OK', 'evolved': '進化済', 'empty': '' }[s];
+                
+                if (s === 'empty') { el.innerHTML = `<button class="btn-add" onclick="addPokemon(${i})">+</button>`; }
+                else {
+                    el.innerHTML = `
+                        <div style="font-size:0.5em; color:#999; margin-bottom:2px;">${label}</div>
+                        <div class="pk-status-text">${stText}</div>
+                        <button class="btn-remove" onclick="removePokemon(${i})">×</button>
+                        <button class="btn-evolve" onclick="evolvePokemon(${i})">↑進化</button>
+                        ${i > 0 ? `<button class="btn-to-active" onclick="moveToActive(${i})">バトル場へ</button>` : ''}
+                    `;
+                }
+            }
+            saveAll();
+        }
+    </script>
+</body>
+</html>
