@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ポケカ ターンマネージャー</title>
+    <style>
+        body {
+            font-family: -apple-system, sans-serif;
+            background-color: #121212;
+            color: #ffffff;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            text-align: center;
+        }
+
+        h1 { font-size: 1.8rem; margin-bottom: 30px; color: #f1c40f; }
+
+        .menu-container {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            width: 80%;
+            max-width: 300px;
+        }
+
+        .menu-card {
+            background: #2a2a2a;
+            padding: 25px;
+            border-radius: 15px;
+            text-decoration: none;
+            color: white;
+            border: 2px solid transparent;
+            transition: 0.3s;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        }
+
+        .menu-card:active {
+            transform: scale(0.95);
+            background: #333;
+        }
+
+        .menu-card.solo { border-color: #3498db; }
+        .menu-card.dual { border-color: #e74c3c; }
+
+        .menu-card h2 { margin: 0; font-size: 1.2rem; }
+        .menu-card p { margin: 10px 0 0; font-size: 0.8rem; color: #aaa; }
+
+        .footer {
+            margin-top: 50px;
+            font-size: 0.7rem;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Pokéca Turn Manager</h1>
+
+    <div class="menu-container">
+        <a href="solo.html" class="menu-card solo">
+            <h2>1人用モード</h2>
+            <p>ポケモン管理・盤面メモ付</p>
+        </a>
+
+        <a href="dual.html" class="menu-card dual">
+            <h2>2人用（対面）</h2>
+            <p>スマホを挟んで対戦管理</p>
+        </a>
+    </div>
+
+    <div class="footer">
+        ブラウザの「ホーム画面に追加」で<br>フルスクリーンアプリとして使えます
+    </div>
+
+</body>
+</html>
